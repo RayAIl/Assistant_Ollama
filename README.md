@@ -38,6 +38,7 @@
 ```bash
 git clone <repo_url> ai_pm
 cd ai_pm
+```
 
 # Создай виртуальное окружение
 python3 -m venv .venv
@@ -47,7 +48,7 @@ source .venv/bin/activate
 ### 2. Установка Python зависимостей
 
 ```bash
-pip install asyncpg aiohttp aiofiles ollama duckduckgo-search beautifulsoup4
+pip install asyncpg aiohttp aiofiles ollama duckduckgo-search beautifulsoup4 redis
 ```
 
 ### 3. Установка системных утилит (Gentoo)

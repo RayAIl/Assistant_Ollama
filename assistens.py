@@ -269,8 +269,7 @@ async def init_redis():
     global r
     try:
         r = await redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True, socket_timeout=10)
-        # Если r.ping() вернет False - это тоже ошибка
-        if not await cast(t.Awaitable[bool], r.ping()):  # type: ignore
+        if not await cast(t.Awaitable[bool], r.ping()):
             raise ConnectionError("Redis не отвечает на ping")
         print(f"{C_GREEN}[REDIS]{C_RESET} Redis готов.")
         return True
@@ -284,7 +283,7 @@ async def init_ollama():
     global client
     try:
         client = AsyncClient(host=OLLAMA_HOST, timeout=300)
-        # Проверяем подключение, вызывая list()
+        # Проверяем подключение
         await client.list()
         print(f"{C_GREEN}[OLLAMA]{C_RESET} Ollama готов ({OLLAMA_MODEL}).")
         return True
@@ -345,7 +344,7 @@ async def delete_project(name: str) -> bool:
             print(f"{C_RED}❌{C_RESET} Проект '{name}' не найден.")
             return False
 
-        # Удаляем проект (каскадно удалятся связанные сообщения)
+        # Удаляем проект
         await conn.execute("DELETE FROM projects WHERE name = $1", name)
         print(f"{C_GREEN}✅{C_RESET} Проект '{name}' удален из базы данных.")
         return True
@@ -444,7 +443,7 @@ def get_full_path(rel_path: str) -> str:
         target_path = os.path.abspath(os.path.join(base_path, rel_path))
 
     if not target_path.startswith(base_path):
-        raise PermissionError(f"❌ Выход за пределы проекта: {rel_path}")
+        raise PermissionError(f"Выход за пределы проекта: {rel_path}")
 
     return target_path
 
@@ -483,7 +482,7 @@ async def scan_directory_tool() -> str:
         combined_text = "--- СОДЕРЖИМОЕ ПРОЕКТА ---\n"
 
         for f_path in file_paths:
-            relative_name = ""  # Инициализация для избежания "possibly unbound"
+            relative_name = ""  # Инициализация для избежания
             try:
                 relative_name = os.path.relpath(f_path, base_path)
                 async with aiofiles.open(f_path, "r", encoding="utf-8", errors="replace") as f:
@@ -499,8 +498,96 @@ async def scan_directory_tool() -> str:
     except Exception as e:
         return f"Ошибка сканирования: {e}"
 
+async def dialog_web_loop(user_input: str):
+    """Глобальный диалог с веб-поиском"""
+    global r, client
+
+    if not r or not client:
+        print(f"{C_RED}[ERROR]{C_RESET} Система не инициализирована.")
+        return
+
+    tools = tools_definition_dialog_web
+
+    # Загружаем историю предыдущих диалогов из Redis
+    messages = [{"role": "system", "content": SYSTEM_PROMPT_DIALOG_WEB}]
+
+    # Получаем предыдущие сообщения для контекста
+    previous_msgs = await cast(t.Awaitable[List[str]], r.lrange(REDIS_DIALOG_KEY, -MAX_DIALOG_HISTORY, -1))
+    if previous_msgs:
+        try:
+            history = [json.loads(m) for m in previous_msgs]
+            messages.extend(history)
+            print(f"{C_GRAY}[CONTEXT]{C_RESET} Загружено {len(history)} сообщений из истории диалогов.")
+        except json.JSONDecodeError:
+            pass
+
+    # Добавляем текущий ввод
+    await cast(t.Awaitable[int], r.rpush(REDIS_DIALOG_KEY, json.dumps({"role": "user", "content": user_input})))
+    messages.append({"role": "user", "content": user_input})
+
+    try:
+        response: ChatResponse = await client.chat(model=OLLAMA_MODEL, messages=messages, tools=tools)
+    except Exception as e:
+        print(f"{C_RED}[ERROR]{C_RESET} Ошибка Ollama: {e}")
+        return
+
+    msg = response["message"]
+
+    if msg.get("tool_calls"):
+        # Обработка tool calls (web_search)
+        try:
+            msg_dict = msg.model_dump() if hasattr(msg, "model_dump") else dict(msg)
+        except:
+            msg_dict = dict(msg)
+
+        await cast(t.Awaitable[int], r.rpush(REDIS_DIALOG_KEY, json.dumps(msg_dict)))
+        messages.append(msg_dict)
+
+        for tool in msg.get("tool_calls"):
+            fn = tool.get("function", {})
+            name = fn.get("name")
+            args = fn.get("arguments", {}) or {}
+
+            if name == "web_search":
+                query = args.get("query")
+                if isinstance(query, str):
+                    print(f"{C_CYAN}[WEB]{C_RESET} 🔍 {query}")
+                    res = await web_search_tool(query)
+                else:
+                    res = "Ошибка: неверный запрос"
+            else:
+                res = f"Инструмент {name} недоступен в режиме диалога"
+
+            tool_result = {
+                "role": "tool",
+                "content": res,
+                "tool_call_id": tool["id"],
+                "name": name,
+            }
+            await cast(t.Awaitable[int], r.rpush(REDIS_DIALOG_KEY, json.dumps(tool_result)))
+            messages.append(tool_result)
+
+        # Получаем финальный ответ (после tool calls)
+        try:
+            response2: ChatResponse = await client.chat(model=OLLAMA_MODEL, messages=messages, tools=tools)
+            text = response2["message"].get("content", "")
+        except Exception as e:
+            text = f"Ошибка обработки: {e}"
+    else:
+        text = msg.get("content", "")
+
+    if text:
+        print(f"{C_GREEN}🤖 [DIALOG]:{C_RESET} {text}")
+        # Сохраняем ответ ассистента
+        await cast(t.Awaitable[int], r.rpush(REDIS_DIALOG_KEY, json.dumps({"role": "assistant", "content": text})))
+
+        # Ограничиваем размер истории
+        current_len = await cast(t.Awaitable[int], r.llen(REDIS_DIALOG_KEY))
+        if current_len > MAX_DIALOG_HISTORY * 2:  # Храним в 2 раза больше для контекста
+            await r.ltrim(REDIS_DIALOG_KEY, -MAX_DIALOG_HISTORY, -1)
+
 async def search_docs_tool(query: str) -> str:
-    """Поиск в каталоге документации (рекурсивный)"""
+    """Поиск в каталоге документации"""
     if not ACTIVE_PROJECT or not ACTIVE_PROJECT.get("doc_path"):
         return "Нет документации."
 
@@ -1038,24 +1125,22 @@ async def main():
                 continue
 
             case "/dialog_web":
-                if not ACTIVE_PROJECT:
-                    print(f"{C_RED}[ERROR]{C_RESET} Нет проекта.{C_RESET}")
-                    continue
                 question = " ".join(parts[1:]) if len(parts) > 1 else ""
                 if not question:
-                    # Режим интерактивного диалога
-                    print(f"{C_BLUE}[DIALOG]{C_RESET} Введите 'выход' для завершения диалога.")
+                    # Интерактивный режим
+                    print(f"{C_BLUE}[DIALOG]{C_RESET} Режим свободного диалога. Введите 'выход' для завершения.")
+                    print(f"{C_GRAY}История сохраняется в Redis. Контекст предыдущих разговоров загружен.{C_RESET}")
                     while True:
                         user_input = input(f"{C_YELLOW}> {C_RESET}")
                         if not user_input.strip():
                             continue
                         if user_input.lower() in ["выход", "exit", "стоп", "quit"]:
-                            print(f"{C_BLUE}[DIALOG]{C_RESET} Диалог завершен.")
+                            print(f"{C_BLUE}[DIALOG]{C_RESET} Диалог завершен. История сохранена в Redis.")
                             break
-                        await agent_loop(user_input, mode="dialog_web")
+                        await dialog_web_loop(user_input)
                 else:
                     # Одноразовый вопрос
-                    await agent_loop(question, mode="dialog_web")
+                    await dialog_web_loop(question)
                 continue
 
             case "/info":
