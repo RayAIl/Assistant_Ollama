@@ -437,38 +437,52 @@ async def write_file_tool(path: str, content: str) -> str:
     try:
         full_path = get_full_path(path)
 
+        # Создаем директорию, если её нет
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
         diff_text = ""
-        if os.path.exists(full_path):
-            print(f"{C_YELLOW}[WARN]{C_RESET} Файл '{path}' существует. Читаю старую версию...")
-            async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
-                old_content = await f.read()
+        # Проверям сущ только для лога
+        file_exist = os.path.exists(full_path)
+        if file_exist:
+            try:
+                if os.path.exists(full_path):
+                    print(f"{C_YELLOW}[WARN]{C_RESET} Файл '{path}' существует. Читаю старую версию...")
+                    async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
+                        old_content = await f.read()
 
-            diff = difflib.unified_diff(
-                old_content.splitlines(keepends=True),
-                content.splitlines(keepends=True),
-                fromfile=f"a/{path}",
-                tofile=f"b/{path}",
-                lineterm="",
-            )
-            diff_text = "".join(diff)
+                    diff = difflib.unified_diff(
+                        old_content.splitlines(keepends=True),
+                        content.splitlines(keepends=True),
+                        fromfile=f"a/{path}",
+                        tofile=f"b/{path}",
+                        lineterm="",
+                    )
+                    diff_text = "".join(diff)
 
-            if diff_text:
-                print(f"\n{C_GRAY}--- DIFF ---{C_RESET}")
-                print(diff_text)
-                print(f"{C_GRAY}--- END ---{C_RESET}")
+                    if diff_text:
+                        print(f"\n{C_GRAY}--- DIFF ({path}) ---{C_RESET}")
+                        print(diff_text[:500] + ("..." if len(diff_text) > 500 else ""))
+                        print(f"{C_GRAY}--- END ---{C_RESET}")
 
-            confirm = await asyncio.to_thread(input, f"{C_YELLOW}❓ Перезаписать '{path}'? [y/N]: {C_RESET}")
-            if confirm.lower() != "y":
-                return "Запись отменена."
+                    confirm = await asyncio.to_thread(input, f"{C_YELLOW}❓ Перезаписать '{path}'? [y/N]: {C_RESET}")
+                    if confirm.lower() != "y":
+                        return "Запись отменена."
+            except Exception as e:
+                print(f"{C_YELLOW}[WARN]{C_RESET} Не удалось прочитать старый файл для сравнения: {e}")
 
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         async with aiofiles.open(full_path, "w", encoding="utf-8") as f:
             await f.write(content)
+        status_msg = "Обновлен" if file_exist else "Создан"
+        print(f"{C_GREEN}✅ Файл {status_msg}: {path}{C_RESET}")
         return f"{C_GREEN}✅{C_RESET} Файл записан: {path}"
-    except PermissionError as e:
-        return f"{C_RED}Ошибка: {e}{C_RESET}"
+
+    except PermissionError as root:
+        return f"{C_RED}[ERROR]:Ошибка прав доступа!: {root}{C_RESET}"
+    except IsADirectoryError as pathh:
+        return f"{C_RED}[ERROR]:Указанный путь явл директорией, а не файлом: {pathh}{C_RESET}"
     except Exception as e:
-        return f"{C_RED}Ошибка записи: {e}{C_RESET}"
+        return f"{C_RED}[ERROR]:Критическая ошибка записи: {e}{C_RED}"
 
 
 async def read_file_tool(path: str) -> str:
@@ -937,7 +951,7 @@ def print_help():
     print(f"  {C_YELLOW}/dialog_clean{C_RESET}                  {C_GRAY}Очистить историю диалога{C_RESET}")
     print(f"  {C_YELLOW}/close{C_RESET}                         {C_GRAY}Сохранить и выйти{C_RESET}")
     print(f"  {C_YELLOW}/exit{C_RESET}                          {C_GRAY}Выход{C_RESET}")
-    print(f"  {C_YELLOW}/ant <question>{C_RESET}              {C_GRAY}Диалог через Anthropic SDK (как ant.py){C_RESET}")
+    print(f"  {C_YELLOW}/ant <question>{C_RESET}                {C_GRAY}Диалог через Anthropic{C_RESET}")
     print(f"\n{C_GRAY}Настройки поиска: {WEB_SEARCH_MAX_RESULTS} сайтов, {WEB_SEARCH_MAX_LENGTH} символов, таймаут {WEB_SEARCH_TIMEOUT}с{C_RESET}")
     print(f"{C_GRAY}Настройки диалога: макс. итераций {DIALOG_MAX_ITERATIONS}{C_RESET}")
     print()

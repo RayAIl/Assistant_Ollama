@@ -1,1 +1,3 @@
 .asistens_venv
+__pycache__
+ant.py

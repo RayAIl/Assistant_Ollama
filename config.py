@@ -20,7 +20,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "glm-4.7-flash:q8_0")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "9600"))                               # 600 - 10 минут
 OLLAMA_OPTIONS = {
-    "temperature": float(os.getenv("OLLAMA_TEMPERATURE", "0.7")),                            # Креативность, чем больше тем креативней, 0.7 стандарт
+    "temperature": float(os.getenv("OLLAMA_TEMPERATURE", "0.3")),                            # Креативность, чем больше тем креативней, 0.7 стандарт
     "top_p": float(os.getenv("OLLAMA_TOP_P", "1.0")),                                        # Отсекаем очевидную чушь
     "top_k": int(os.getenv("OLLAMA_TOP_K", "40")),                                           # Сколько вариантов держать в голове
     "repeat_penalty": float(os.getenv("OLLAMA_REPEAT_PENALTY", "1.1")),                      # Штраф за повторы
