@@ -154,12 +154,12 @@ def get_full_path(rel_path: str) -> str:
         raise PermissionError("Нет активного проекта.")
 
     base_path = os.path.abspath(ACTIVE_PROJECT["path"])
-    rel_path = rel_path.strip()
+    rel_path: str = rel_path.strip()
 
-    if os.path.isabs(rel_path):
-        target_path = os.path.abspath(rel_path)
+    if os.path.isabs(s=rel_path):
+        target_path: str = os.path.abspath(rel_path)
     else:
-        target_path = os.path.abspath(os.path.join(base_path, rel_path))
+        target_path: str= os.path.abspath(os.path.join(base_path, rel_path))
 
     if not target_path.startswith(base_path):
         raise PermissionError(f"Выход за пределы проекта: {rel_path}")
@@ -178,7 +178,7 @@ async def scan_directory_tool() -> str:
     base_path = os.path.abspath(ACTIVE_PROJECT["path"])
     print(f"{C_GRAY}[SCAN]{C_RESET} Сканирую {base_path}...")
 
-    cmd = (
+    cmd: str = (
         f"find {shlex.quote(base_path)} -type f "
         r'\( -name "*.rs" -o -name "*.py" -o -name "*.toml" -o -name "*.txt" -o -name "*.yaml" -o -name "*.yml" -o -name "*.md" \) '
         r'-not -path "*/target/*" -not -path "*/node_modules/*" -not -path "*/.venv/*" -not -path "*/__pycache__/*" -not -path "*/.git/*"'
@@ -190,12 +190,12 @@ async def scan_directory_tool() -> str:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+        stdout, stderr = await asyncio.wait_for(fut=proc.communicate(), timeout=30.0)
 
         if stderr and b"Permission denied" in stderr:
             print(f"{C_YELLOW}[WARN]{C_RESET} Нет доступа к некоторым файлам.")
 
-        file_paths = [f.strip() for f in stdout.decode().splitlines()]
+        file_paths: list[str] = [f.strip() for f in stdout.decode().splitlines()]
 
         if not file_paths:
             return "Файлов не найдено."
@@ -207,10 +207,10 @@ async def scan_directory_tool() -> str:
         for f_path in file_paths:
             relative_name = ""
             try:
-                relative_name = os.path.relpath(f_path, base_path)
+                relative_name: str = os.path.relpath(f_path, base_path)
                 async with aiofiles.open(f_path, "r", encoding="utf-8", errors="replace") as f:
-                    content = await f.read()
-                    preview = content[:LENGTH_CONTEXT] + "... (обрезано)" if len(content) > LENGTH_CONTEXT else content
+                    content: str = await f.read()
+                    preview: str = content[:LENGTH_CONTEXT] + "... (обрезано)" if len(content) > LENGTH_CONTEXT else content
                     combined_text += f"\n>>> FILE: {relative_name} <<<\n{preview}\n"
             except Exception as e:
                 combined_text += f"\n>>> FILE: {relative_name} <<<\nОШИБКА ЧТЕНИЯ: {e}\n"
@@ -228,13 +228,13 @@ async def get_dialog_status() -> str:
         return "Redis не доступен."
 
     try:
-        length = await cast(t.Awaitable[int], bd.r.llen(REDIS_DIALOG_KEY))
+        length: int = await cast(t.Awaitable[int], bd.r.llen(REDIS_DIALOG_KEY))
         memory_usage = await bd.r.memory_usage(REDIS_DIALOG_KEY) or 0
 
         preview = ""
         if length > 0:
-            first_msgs = await cast(t.Awaitable[List[str]], bd.r.lrange(REDIS_DIALOG_KEY, 0, 2))
-            last_msgs = await cast(t.Awaitable[List[str]], bd.r.lrange(REDIS_DIALOG_KEY, -3, -1))
+            first_msgs: list[str] = await cast(t.Awaitable[List[str]], bd.r.lrange(REDIS_DIALOG_KEY, 0, 2))
+            last_msgs: list[str] = await cast(t.Awaitable[List[str]], bd.r.lrange(REDIS_DIALOG_KEY, -3, -1))
 
             preview += f"\n{C_GRAY}Первые сообщения:{C_RESET}\n"
             for i, msg in enumerate(first_msgs, 1):
@@ -280,7 +280,7 @@ async def clean_dialog_history() -> str:
         return f"{C_RED}Ошибка очистки: {e}{C_RESET}"
 
 
-async def dialog_web_loop(user_input: str):
+async def dialog_web_loop(user_input: str) -> None:
     """Глобальный диалог с веб-поиском и поддержкой множественных tool_calls"""
     global r, client
 

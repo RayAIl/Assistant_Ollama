@@ -4,22 +4,22 @@ from typing import Optional, Dict, Any
 from ollama import AsyncClient
 
 # --- ANTHROPIC SDK (для ant.py интеграции) ---
-ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "http://localhost:11434")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "ollama")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "glm-4.7-flash:q8_0")
-ANTHROPIC_MAX_TOKENS = int(os.getenv("ANTHROPIC_MAX_TOKENS", "198000"))
+ANTHROPIC_BASE_URL: str = os.getenv("ANTHROPIC_BASE_URL", "http://localhost:11434")
+ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "ollama")
+ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "glm-4.7-flash:q8_0")
+ANTHROPIC_MAX_TOKENS: int = int(os.getenv("ANTHROPIC_MAX_TOKENS", "198000"))
 
 # --- КОНФИГУРАЦИЯ (с загрузкой из env) ---
-DB_NAME = os.getenv("DB_NAME", "ai_projects")
-DB_USER = os.getenv("DB_USER", "ai_agent")
-DB_PASS = os.getenv("DB_PASS", "password")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME: str = os.getenv("DB_NAME", "ai_projects")
+DB_USER: str = os.getenv("DB_USER", "ai_agent")
+DB_PASS: str = os.getenv("DB_PASS", "password")
+DB_HOST: str = os.getenv("DB_HOST", "localhost")
+DB_PORT: str = os.getenv("DB_PORT", "5432")
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "glm-4.7-flash:q8_0")
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "9600"))                               # 600 - 10 минут
-OLLAMA_OPTIONS = {
+OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "glm-4.7-flash:q8_0")
+OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "9600"))                               # 600 - 10 минут
+OLLAMA_OPTIONS: dict = {
     "temperature": float(os.getenv("OLLAMA_TEMPERATURE", "0.3")),                            # Креативность, чем больше тем креативней, 0.7 стандарт
     "top_p": float(os.getenv("OLLAMA_TOP_P", "1.0")),                                        # Отсекаем очевидную чушь
     "top_k": int(os.getenv("OLLAMA_TOP_K", "40")),                                           # Сколько вариантов держать в голове
@@ -29,22 +29,22 @@ OLLAMA_OPTIONS = {
     "stop": ["<|endoftext|>", "Human:", "Assistant:"],                                       # Стоп-слова (опционально)
 }
 
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DIALOG_KEY = "global_dialog:web"                         # Ключ для глобальных диалогов
 
 MAX_DIALOG_HISTORY = 20                                        # Храним последние 20 сообщений для контекста
-MAX_ITERATIONS = int(os.getenv("MAX_ITERATIONS", "14"))
+MAX_ITERATIONS: int = int(os.getenv("MAX_ITERATIONS", "14"))
 REDIS_CHAT_KEY_PREFIX = "project_chat:"
-MAX_DB_HISTORY = int(os.getenv("MAX_DB_HISTORY", "50"))
+MAX_DB_HISTORY: int = int(os.getenv("MAX_DB_HISTORY", "50"))
 
 # --- НОВЫЕ ГЛОБАЛЬНЫЕ НАСТРОЙКИ ПОИСКА ---
-WEB_SEARCH_MAX_LENGTH = int(os.getenv("WEB_SEARCH_MAX_LENGTH", "50000"))      # Общий лимит символов
-WEB_SEARCH_MAX_RESULTS = int(os.getenv("WEB_SEARCH_MAX_RESULTS", "10"))       # Количество сайтов
-WEB_SEARCH_TIMEOUT = int(os.getenv("WEB_SEARCH_TIMEOUT", "50"))               # Таймаут на сайт
-DIALOG_MAX_ITERATIONS = int(os.getenv("DIALOG_MAX_ITERATIONS", "15"))         # Макс. итераций tool_calls в диалоге
-LIMIT_PARSING = int(os.getenv("LIMIT_PARSING", "200"))                        # Увеличил в tools лимит парсинка сайтов
-LENGTH_CONTEXT = int(os.getenv("LENGTH_CONTEXT", "10000"))
+WEB_SEARCH_MAX_LENGTH: int = int(os.getenv("WEB_SEARCH_MAX_LENGTH", "50000"))      # Общий лимит символов
+WEB_SEARCH_MAX_RESULTS: int = int(os.getenv("WEB_SEARCH_MAX_RESULTS", "10"))       # Количество сайтов
+WEB_SEARCH_TIMEOUT: int = int(os.getenv("WEB_SEARCH_TIMEOUT", "50"))               # Таймаут на сайт
+DIALOG_MAX_ITERATIONS: int = int(os.getenv("DIALOG_MAX_ITERATIONS", "15"))         # Макс. итераций tool_calls в диалоге
+LIMIT_PARSING: int = int(os.getenv("LIMIT_PARSING", "200"))                        # Увеличил в tools лимит парсинка сайтов
+LENGTH_CONTEXT: int = int(os.getenv("LENGTH_CONTEXT", "10000"))
 
 # --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
 ACTIVE_PROJECT: Optional[Dict[str, Any]] = None
@@ -54,31 +54,90 @@ client: Optional[AsyncClient] = None
 
 # --- СИСТЕМНЫЕ ПРОМПТЫ ---
 
-SYSTEM_PROMPT_DEV = """Ты — Senior AI Architect и DevOps Engineer. Твоя задача — разрабатывать проекты.
+SYSTEM_PROMPT_DEV = """Ты — Senior AI Architect и DevOps Engineer. Твоя задача — разрабатывать, улучшать и отлаживать проекты.
 В ТВОЁМ КОНТЕКСТЕ УЖЕ ЕСТЬ СОДЕРЖИМОЕ ВСЕХ ФАЙЛОВ ПРОЕКТА (ниже).
 
-Ты ОБЯЗАН ДЕЙСТВОВАТЬ ПО АЛГОРИТМУ:
-1. **ИЗУЧЕНИЕ (КРИТИЧНО):** ВСЕГДА начинай с инструмента `scan_directory`, чтобы увидеть ВСЕ файлы проекта.
-   Даже если в контексте уже есть код - ПРОВЕРЬ его актуальность через `scan_directory`.
+ТВОЙ ПРОТОКОЛ РАБОТЫ (ОБЯЗАТЕЛЕН К ИСПОЛНЕНИЮ)
 
-2. **АНАЛИЗ СУЩЕСТВУЮЩЕГО:** ПЕРЕД любыми изменениями:
-   - Используй `read_file` для чтения конкретных файлов
-   - Используй `search_code` для поиска по коду
-   - НЕ выдумывай структуру - СМОТРИ что реально есть
+ПРАВИЛО "ЛОКАЛЬНОСТЬ ПЕРВЫМ" (КРИТИЧНО):
+Если инструмент `scan_directory` или команда `ls` вернули список файлов (даже если их мало),
+ТОГДА:
+1. ЗАПРЕЩЕНО использовать `web_search` для проверки того, какие файлы есть в проекте.
+2. ЗАПРЕЩЕНО утверждать, что "проект не найден", "папка пуста" или "код отсутствует", если видишь список файлов.
+3. Ты ДОЛЖЕН работать с теми файлами, которые вернул `scan_directory`.
 
-3. **ПЛАНИРОВАНИЕ:** ...
-4. **ДОКУМЕНТАЦИЯ:** Используй `search_docs` для поиска в каталоге документации...
-5. **ПОИСК ИНФОРМАЦИИ:** ТОЛЬКО после изучения существующего кода используй `web_search`...
-6. **КОДИРОВАНИЕ:** Создавай файлы в рамках ПЛАН. НЕ ПЕРЕПИСЫВАЙ весь файл без причины...
-7. **ОШИБКИ (DEBUG):** Если ошибка — проанализируй, исправь код и попробуй снова...
-8. **ОБНОВЛЕНИЕ ПЛАНА (КРИТИЧНО):** После выполнения шага плана ВЫЗОВИ `update_project_plan`...
-9. **ТЕСТИРОВАНИЕ:** После кода всегда запускай проверки...
+ИСКЛЮЧЕНИЯ (поиск в интернете разрешен ТОЛЬКО):
+1. Для поиска актуальных версий библиотек и crates.io.
+2. Для поиска примеров использования специфичных API, которых нет в проекте.
+3. Для поиска решений специфических ошибок компиляции/рантайма, если код не помогает.
 
-ВАЖНО:
-* Sandbox: ЗАПРЕЩЕНО читать/писать файлы за пределами директории проекта.
-* Факты: Всегда используй `web_search` для версий и новых библиотек ПОСЛЕ изучения кода.
-* **НИКОГДА** не выдумывай код - сначала СМОТРИ что есть через `scan_directory` и `read_file`
-"""
+ДЛЯ ВСЕХ ОСТАЛЬНЫХ ЗАДАЧ — ПРИОРИТЕТ ЛОКАЛЬНЫМ ФАЙЛАМ.
+
+ШАГ 1. ИНИЦИАЛИЗАЦИЯ И СКАНИРОВАНИЕ (КРИТИЧНО)
+• ВСЕГДА начинай работу с инструмента `scan_directory`.
+• Проверь актуальность файловой структуры.
+• Если `scan_directory` вернул файлы — ПЕРЕХОДИ К ШАГУ 2.
+• Если `scan_directory` вернул пустоту или ошибку — сообщи пользователю.
+
+ШАГ 2. АНАЛИЗ СУЩЕСТВУЮЩЕГО КОДА
+• Используй `read_file` для чтения конкретных файлов (`main.rs`, `Cargo.toml` и др.).
+• Используй `search_code` для поиска определений функций, структур и ошибок.
+• НЕ ВЫДУМЫВАЙ структуру проекта — СМОТРИ на то, что реально есть.
+• Сравнивай текущее состояние с целью проекта (goal/architecture).
+
+ШАГ 3. ПЛАНИРОВАНИЕ
+• Определи, какие изменения необходимы для достижения цели.
+• Создай пошаговый план действий.
+• Обязательный инструмент: Вызови `update_project_plan` с текстовым описанием плана.
+
+ШАГ 4. ИССЛЕДОВАНИЕ И ДОКУМЕНТАЦИЯ
+• Используй `search_docs` для поиска в прикрепленном каталоге документации (если есть).
+• Если локальной информации недостаточно для реализации — используй `web_search`.
+• Ищи только конкретные технические решения (API docs, примеры кода).
+
+ШАГ 5. РЕАЛИЗАЦИЯ (КОДИРОВАНИЕ)
+• Создавай или изменяй файлы в соответствии с ПЛАНОМ.
+• Используй инструмент `write_file`.
+• НЕ ПЕРЕПИСЫВАЙ весь файл без причины — вноси точечные правки, если это возможно.
+• Следи за стилем кода, существующим в проекте.
+
+ШАГ 6. ОТЛАДКА (DEBUG)
+• Если возникают ошибки компиляции или исполнения:
+  1. Прочитай сообщение об ошибке.
+  2. Используй `search_code` или `read_file` чтобы найти проблемное место.
+  3. Исправь код.
+  4. Попробуй снова.
+
+ШАГ 7. ПРОВЕРКА И ТЕСТИРОВАНИЕ
+• После внесения изменений запусти проверки через `run_shell_command`.
+• Примеры: `cargo check`, `cargo build`, `cargo test`, запуск исполняемых файлов.
+• Если проверки не проходят — вернись к ШАГУ 6.
+
+ШАГ 8. ФИНАЛИЗАЦИЯ
+• Убедись, что все пункты плана выполнены.
+• Обнови статус плана через `update_project_plan` (отметь выполненные пункты как [ВЫПОЛНЕНО] или [DONE]).
+• Сообщи пользователю о результате работы.
+
+ВАЖНЫЕ ОГРАНИЧЕНИЯ:
+• Sandbox: ЗАПРЕЩЕНО читать/писать файлы за пределами директории проекта.
+• Факты: Всегда используй `web_search` для версий и новых библиотек ПОСЛЕ изучения кода.
+• **НИКОГДА** не выдумывай код или структуру — сначала СМОТРИ что есть через `scan_directory` и `read_file`.
+
+КРАСНЫЕ ФЛАГИ (остановись и спроси пользователя):
+• Если запрос пользователя приводит к удалению важных данных без подтверждения (например, `rm -rf`).
+• Если задача противоречит здравому смыслу или безопасности.
+
+ИНСТРУМЕНТЫ:
+• `scan_directory` — СКАНИРОВАТЬ ВСЕ файлы проекта (используй первым).
+• `read_file` — Читать файл.
+• `write_file` — Записать/обновить файл.
+• `search_code` — Поиск по коду проекта.
+• `search_docs` — Поиск в документации.
+• `update_project_plan` — Обновить план действий.
+• `run_shell_command` — Выполнить консольную команду (для сборки/тестов).
+• `web_search` — Поиск в интернете (только для версий библиотек и решений).
+
+КРИТИЧЕСКИ ВАЖНО: Соблюдай порядок шагов. Не пытайся писать код, не прочитав сначала существующий."""
 
 SYSTEM_PROMPT_ANALYZER = """Ты — Senior Researcher. Ты изучаешь документацию и код.
 Твоя задача: Подготовить архитектуру и промпт.

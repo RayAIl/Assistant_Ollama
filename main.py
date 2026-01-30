@@ -5,7 +5,7 @@ from config import *
 
 # --- MAIN CLI ---
 
-async def main():
+async def main() -> None:
     """Главная CLI-функция"""
     global ACTIVE_PROJECT, r
 
@@ -26,16 +26,16 @@ async def main():
     try:
         while True:
             try:
-                prompt_proj = f"{C_CYAN}[{bd.ACTIVE_PROJECT['name']}]{C_RESET} " if bd.ACTIVE_PROJECT else ""
-                user_input = input(f"{C_YELLOW}➜ {C_RESET}{prompt_proj}")
+                prompt_proj: str = f"{C_CYAN}[{bd.ACTIVE_PROJECT['name']}]{C_RESET} " if bd.ACTIVE_PROJECT else ""
+                user_input: str = input(f"{C_YELLOW}➜ {C_RESET}{prompt_proj}")
             except (EOFError, KeyboardInterrupt):
                 break
 
             if not user_input.strip():
                 continue
 
-            parts = user_input.split()
-            cmd = parts[0]
+            parts:list[str] = user_input.split()
+            cmd: str = parts[0]
 
             match cmd:
                 case "/exit":
@@ -43,8 +43,8 @@ async def main():
 
                 case "/close":
                     if bd.ACTIVE_PROJECT:
-                        await bd.sync_redis_to_db(bd.ACTIVE_PROJECT["id"])
-                        await bd.update_project_fields({"status": "closed"})
+                        await bd.sync_redis_to_db(project_id=bd.ACTIVE_PROJECT["id"])
+                        await bd.update_project_fields(fields={"status": "closed"})
                         name = bd.ACTIVE_PROJECT["name"]
                         bd.ACTIVE_PROJECT = None
                         print(f"{C_GREEN}[CLOSED]{C_RESET} Проект '{name}' сохранен.")
@@ -69,7 +69,7 @@ async def main():
                     continue
 
                 case "/create":
-                    args_text = " ".join(parts[1:])
+                    args_text: str = " ".join(parts[1:])
                     # Формат: /create имя путь "цель с пробелами"
                     # Регулярка для парсинга с учётом кавычек
                     match_args = re.match(r'(\S+)\s+(\S+)\s+"([^"]+)"', args_text) or re.match(r'(\S+)\s+(\S+)\s+(.*)', args_text)
@@ -100,7 +100,7 @@ async def main():
 
                 case "/delete":
                     if len(parts) > 1:
-                        name = parts[1]
+                        name: str = parts[1]
                         if bd.ACTIVE_PROJECT and bd.ACTIVE_PROJECT.get("name") == name:
                             bd.ACTIVE_PROJECT = None
                         await bd.delete_project(name)
@@ -113,9 +113,9 @@ async def main():
                         print(f"{C_RED}[ERROR]{C_RESET} Нет проекта.{C_RESET}")
                         continue
                     if len(parts) > 1:
-                        doc_path = parts[1]
-                        if os.path.isdir(doc_path):
-                            await bd.update_project_fields({"doc_path": doc_path})
+                        doc_path: str = parts[1]
+                        if os.path.isdir(s=doc_path):
+                            await bd.update_project_fields(fields={"doc_path": doc_path})
                             print(f"{C_GREEN}[OK]{C_RESET} Каталог документации привязан: {doc_path}")
                         else:
                             print(f"{C_RED}[ERROR]{C_RESET} Укажите существующий каталог.")
@@ -126,7 +126,7 @@ async def main():
                 case "/doc_del":
                     if not bd.ACTIVE_PROJECT:
                         continue
-                    if await bd.update_project_fields({"doc_path": None}):
+                    if await bd.update_project_fields(fields={"doc_path": None}):
                         print(f"{C_GREEN}[OK]{C_RESET} Путь к документации удален.")
                     else:
                         print(f"{C_RED}[ERROR]{C_RESET} Не удалось удалить путь к документации.")
@@ -136,7 +136,7 @@ async def main():
                     if not bd.ACTIVE_PROJECT:
                         print(f"{C_RED}[ERROR]{C_RESET} Нет проекта.{C_RESET}")
                         continue
-                    await bd.update_project_fields({"status": "analysis"})
+                    await bd.update_project_fields(fields={"status": "analysis"})
                     print(f"{C_BLUE}[MODE]{C_RESET} Режим Анализа. Используйте /analyze_prompt или /architect.")
                     continue
 
@@ -144,8 +144,8 @@ async def main():
                     if not bd.ACTIVE_PROJECT:
                         continue
                     if len(parts) > 1:
-                        prompt_text = " ".join(parts[1:])
-                        await bd.update_project_fields({"final_prompt": prompt_text})
+                        prompt_text: str = " ".join(parts[1:])
+                        await bd.update_project_fields(fields={"final_prompt": prompt_text})
                         print(f"{C_GREEN}[OK]{C_RESET} Промпт сохранен.")
                     else:
                         print(f"{C_RED}[ERROR]{C_RESET} Укажите текст промпта.")
@@ -155,8 +155,8 @@ async def main():
                     if not bd.ACTIVE_PROJECT:
                         continue
                     if len(parts) > 1:
-                        arch_text = " ".join(parts[1:])
-                        await bd.update_project_fields({"architecture": arch_text})
+                        arch_text: str = " ".join(parts[1:])
+                        await bd.update_project_fields(fields={"architecture": arch_text})
                         print(f"{C_GREEN}[OK]{C_RESET} Архитектура сохранена.")
                     else:
                         print(f"{C_RED}[ERROR]{C_RESET} Укажите описание архитектуры.")
@@ -165,16 +165,16 @@ async def main():
                 case "/dev":
                     if not bd.ACTIVE_PROJECT:
                         continue
-                    await bd.update_project_fields({"status": "active"})
+                    await bd.update_project_fields(fields={"status": "active"})
                     print(f"{C_GREEN}[MODE]{C_RESET} Режим Разработки.")
-                    await bd.agent_loop("Проанализируй Промпт и Архитектуру, создай план и начни разработку.")
+                    await bd.agent_loop(user_input="Проанализируй Промпт и Архитектуру, создай план и начни разработку.")
                     continue
 
                 case "/review":
                     if not bd.ACTIVE_PROJECT:
                         continue
                     if len(parts) > 1:
-                        await bd.agent_loop(f"Сделай Code Review файла {parts[1]}. Найди ошибки и уязвимости.", mode="review")
+                        await bd.agent_loop(user_input=f"Сделай Code Review файла {parts[1]}. Найди ошибки и уязвимости.", mode="review")
                     else:
                         print(f"{C_RED}[ERROR]{C_RESET} Укажите файл для ревью.")
                     continue
@@ -183,30 +183,30 @@ async def main():
                     if not bd.ACTIVE_PROJECT:
                         continue
                     if len(parts) > 1:
-                        await bd.agent_loop(f"Объясни файл {parts[1]} построчно.", mode="explain")
+                        await bd.agent_loop(user_input=f"Объясни файл {parts[1]} построчно.", mode="explain")
                     else:
                         print(f"{C_RED}[ERROR]{C_RESET} Укажите файл для объяснения.")
                     continue
 
                 case "/dialog_web":
                     global DIALOG_MODE
-                    question = " ".join(parts[1:]) if len(parts) > 1 else ""
+                    question: str = " ".join(parts[1:]) if len(parts) > 1 else ""
                     if not question:
                         print(f"{C_BLUE}[DIALOG]{C_RESET} Режим свободного диалога активирован.")
                         print(f"{C_GRAY}История сохраняется в Redis. Введите сообщение для общения или 'выход' для завершения.{C_RESET}")
                         DIALOG_MODE = True
                         continue
                     else:
-                        await dialog_web_loop(question)
+                        await dialog_web_loop(user_input=question)
                     continue
 
                 case "/dialog_status":
-                    status = await get_dialog_status()
+                    status: str = await get_dialog_status()
                     print(status)
                     continue
 
                 case "/dialog_clean":
-                    result = await clean_dialog_history()
+                    result: str = await clean_dialog_history()
                     print(result)
                     continue
 
@@ -215,22 +215,22 @@ async def main():
                     continue
 
                 case "/ant":
-                    question = " ".join(parts[1:]) if len(parts) > 1 else ""
+                    question: str = " ".join(parts[1:]) if len(parts) > 1 else ""
                     if not question:
                         print(f"{C_CYAN}[ANT]{C_RESET} Режим прямого диалога (Anthropic SDK)")
                         print(f"{C_GRAY}Модель: {ANTHROPIC_MODEL} | URL: {ANTHROPIC_BASE_URL}{C_RESET}")
                         while True:
                             try:
-                                user_q = input(f"{C_YELLOW}ant> {C_RESET}")
+                                user_q: str = input(f"{C_YELLOW}ant> {C_RESET}")
                                 if user_q.lower() in ["exit", "quit", "/exit"]:
                                     break
                                 if user_q.strip():
-                                    await bd.stream_anthropic(user_q)
+                                    await bd.stream_anthropic(user_input=user_q)
                             except (KeyboardInterrupt, EOFError):
                                 break
                         print(f"\n{C_GRAY}[ANT] Диалог завершен{C_RESET}")
                     else:
-                        await bd.stream_anthropic(question)
+                        await bd.stream_anthropic(user_input=question)
                     continue
 
                 case _:
@@ -253,7 +253,7 @@ async def main():
 
     finally:
         if bd.ACTIVE_PROJECT:
-            await bd.sync_redis_to_db(bd.ACTIVE_PROJECT["id"])
+            await bd.sync_redis_to_db(project_id=bd.ACTIVE_PROJECT["id"])
             print(f"{C_GRAY}💾{C_RESET} Проект сохранен.")
         if bd.r:
             await bd.r.aclose()
@@ -261,6 +261,6 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        asyncio.run(main=main())
     except KeyboardInterrupt:
         print(f"\n{C_GRAY}👋 До свидания!{C_RESET}")
