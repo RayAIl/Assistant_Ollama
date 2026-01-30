@@ -47,22 +47,8 @@ source .venv/bin/activate
 
 ### 2. Установка Python зависимостей
 
-Добавлены новые библиотеки для работы с Redis, Anthropic и веб-парсингом.
-
 ```bash
 pip install -r requirements.txt
-```
-*Содержимое `requirements.txt`:*
-```text
-asyncpg
-aiohttp
-aiofiles
-ollama
-duckduckgo-search
-beautifulsoup4
-redis
-anthropic
-ddgs
 ```
 
 ### 3. Настройка Ollama
