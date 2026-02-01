@@ -52,18 +52,6 @@ source .venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
-*Содержимое `requirements.txt`:*
-```text
-asyncpg
-aiohttp
-aiofiles
-ollama
-duckduckgo-search
-beautifulsoup4
-redis
-anthropic
-ddgs
-```
 
 ### 3. Настройка Ollama
 
@@ -75,11 +63,8 @@ ddgs
     ```bash
     ollama serve &
     ```
-3.  **Загрузка модели:**
-    По умолчанию используется `glm-4.7-flash` (быстрая и умная).
-    ```bash
-    ollama pull glm-4.7-flash
-    ```
+3.  **Модель которая используется в шаблоне:**
+    По умолчанию используется `glm-4.7-flash:q8_0`, на момент 26.02.01 является самой умной 30b моделью.
 
 ### 4. Настройка Redis
 
@@ -118,9 +103,6 @@ Redis используется для хранения истории диало
     GRANT ALL PRIVILEGES ON DATABASE ai_projects TO ai_agent;
     \q
     ```
-
-> **Примечание:** Скрипт автоматически создаст необходимые таблицы (`projects`, `project_messages`) при первом запуске.
-
 
 ### Консольные команды
 
@@ -182,13 +164,13 @@ DB_USER = "ai_agent"
 DB_PASS = "password"
 
 # --- OLLAMA ---
-OLLAMA_MODEL = "glm-4.7-flash"  # Модель по умолчанию
+OLLAMA_MODEL = "glm-4.7-flash:q8_0"  # Модель по умолчанию
 OLLAMA_HOST = "http://localhost:11434"
 OLLAMA_TIMEOUT = 9600  # Таймаут в секундах
 
 # --- ANTHROPIC (для /ant) ---
 ANTHROPIC_BASE_URL = "http://localhost:11434" # Можно использовать прокси к Claude
-ANTHROPIC_API_KEY = "sk-ant-..."
+ANTHROPIC_API_KEY = "sk-ant-..." # как заглушка любая информация подойдет.
 
 # --- REDIS ---
 REDIS_HOST = "localhost"
@@ -214,4 +196,3 @@ MAX_DB_HISTORY = 50              # Сколько сообщений из БД �
 ## 📝 Лицензия
 
 MIT License.
-```

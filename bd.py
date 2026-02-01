@@ -2,30 +2,30 @@ import asyncio
 import json
 import typing as t
 import anthropic
-from typing import cast, List, Dict, Any
-from config import *
-from tools import *
-
 import asyncpg
 import redis.asyncio as redis
 
-# Импортируем настройки и цвета
+from typing import cast, List, Dict, Any, Awaitable
 from config import *
+from tools import *
 
 # --- БАЗА ДАННЫХ ---
 
-async def stream_anthropic(user_input: str, history: list | None = None):
+# Типы для базы данных
+DbRecord: Any = asyncpg.Record
+
+async def stream_anthropic(user_input: str, history: list | None = None) -> Any | str | None:
     """Стриминговый диалог через Anthropic SDK (как в ant.py)"""
     try:
-        client = anthropic.AsyncAnthropic(
+        client: Any = anthropic.AsyncAnthropic(
             base_url=ANTHROPIC_BASE_URL,
             api_key=ANTHROPIC_API_KEY
         )
 
-        messages = history if history else []
+        messages: list[Any] = history if history else []
         messages.append({"role": "user", "content": user_input})
 
-        full_response = ""
+        full_response: str = ""
         async with client.messages.stream(
             model=ANTHROPIC_MODEL,
             max_tokens=ANTHROPIC_MAX_TOKENS,
@@ -35,7 +35,7 @@ async def stream_anthropic(user_input: str, history: list | None = None):
                 print(text, end="", flush=True)
                 full_response += text
 
-        print()  # newline в конце
+        print()
         return full_response
 
     except Exception as e:
@@ -45,10 +45,10 @@ async def stream_anthropic(user_input: str, history: list | None = None):
 
 
 
-async def init_db():
+async def init_db() -> bool:
     """Инициализация PostgreSQL с обработкой ошибок"""
     try:
-        conn = await asyncpg.connect(
+        conn: Any = await asyncpg.connect(
             user=DB_USER,
             password=DB_PASS,
             database=DB_NAME,
@@ -95,26 +95,26 @@ async def init_db():
         return False
 
 
-async def init_redis():
+async def init_redis() -> bool:
     """Инициализация Redis с обработкой ошибок"""
     global r
     try:
-        r = await redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True, socket_timeout=10)
+        r: Any | None = await redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True, socket_timeout=10)
         if not await cast(t.Awaitable[bool], r.ping()):
             raise ConnectionError("Redis не отвечает на ping")
         print(f"{C_GREEN}[REDIS]{C_RESET} Redis готов.")
         return True
     except Exception as e:
         print(f"{C_RED}[REDIS ERROR]{C_RESET} {e}")
-        r = None
+        r: None = None
         return False
 
 
-async def init_ollama():
+async def init_ollama() -> bool:
     """Инициализация Ollama-клиента"""
     global client
     try:
-        client = AsyncClient(host=OLLAMA_HOST, timeout=OLLAMA_TIMEOUT)
+        client: Any = AsyncClient(host=OLLAMA_HOST, timeout=OLLAMA_TIMEOUT)
         if client is None:
             raise ConnectionError("Failed to create Ollama client")
         await client.list()
@@ -131,7 +131,7 @@ async def create_project(name: str, path: str, goal: str = "") -> bool:
     if not await init_db():
         return False
 
-    conn = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
+    conn: Any = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
     try:
         await conn.execute("INSERT INTO projects (name, path, goal) VALUES ($1, $2, $3)", name, path, goal)
         print(f"{C_GREEN}✅{C_RESET} Проект '{name}' создан.")
@@ -145,9 +145,9 @@ async def create_project(name: str, path: str, goal: str = "") -> bool:
 
 async def get_all_projects() -> List[Any]:
     """Получение списка всех проектов"""
-    conn = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
+    conn: Any = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
     try:
-        rows = await conn.fetch("SELECT name, status, goal FROM projects ORDER BY created_at DESC")
+        rows: Any = await conn.fetch("SELECT name, status, goal FROM projects ORDER BY created_at DESC")
         return rows
     finally:
         await conn.close()
@@ -156,13 +156,13 @@ async def get_all_projects() -> List[Any]:
 async def load_project(name: str) -> bool:
     """Загрузка проекта в активную сессию"""
     global ACTIVE_PROJECT
-    conn = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
+    conn: Any = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
     try:
-        row = await conn.fetchrow("SELECT * FROM projects WHERE name = $1", name)
+        row: Any = await conn.fetchrow("SELECT * FROM projects WHERE name = $1", name)
         if row:
-            ACTIVE_PROJECT = dict(row)
+            ACTIVE_PROJECT: dict[Any, Any] = dict(row)
             print(f"{C_GREEN}🚀{C_RESET} Загружен: '{ACTIVE_PROJECT['name']}' ({ACTIVE_PROJECT['status']})")
-            await sync_db_to_redis(ACTIVE_PROJECT["id"])
+            await sync_db_to_redis(project_id=ACTIVE_PROJECT["id"])
             return True
         else:
             print(f"{C_RED}❌{C_RESET} Проект не найден.")
@@ -173,9 +173,9 @@ async def load_project(name: str) -> bool:
 
 async def delete_project(name: str) -> bool:
     """Удаление проекта из базы данных"""
-    conn = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
+    conn: Any = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
     try:
-        row = await conn.fetchrow("SELECT id FROM projects WHERE name = $1", name)
+        row: Any = await conn.fetchrow("SELECT id FROM projects WHERE name = $1", name)
         if not row:
             print(f"{C_RED}❌{C_RESET} Проект '{name}' не найден.")
             return False
@@ -187,15 +187,15 @@ async def delete_project(name: str) -> bool:
         await conn.close()
 
 
-async def sync_db_to_redis(project_id: int):
+async def sync_db_to_redis(project_id: int) -> None:
     """Загружает историю из БД в Redis"""
     if not r:
-        return
+        pass
 
-    key = f"{REDIS_CHAT_KEY_PREFIX}{project_id}"
-    conn = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
+    key: str = f"{REDIS_CHAT_KEY_PREFIX}{project_id}"
+    conn: Any = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
     try:
-        rows = await conn.fetch(
+        rows: Any = await conn.fetch(
             "SELECT role, content FROM project_messages WHERE project_id = $1 ORDER BY id DESC LIMIT $2",
             project_id,
             MAX_DB_HISTORY,
@@ -203,7 +203,7 @@ async def sync_db_to_redis(project_id: int):
         if rows:
             rows = list(rows)
             rows.reverse()
-            messages = [json.dumps({"role": row["role"], "content": row["content"]}) for row in rows]
+            messages: list(str) = [json.dumps(obj={"role": row["role"], "content": row["content"]}) for row in rows]
             async with r.pipeline() as pipe:
                 pipe.delete(key)
                 if messages:
@@ -214,17 +214,17 @@ async def sync_db_to_redis(project_id: int):
         await conn.close()
 
 
-async def sync_redis_to_db(project_id: int):
+async def sync_redis_to_db(project_id: int) -> None:
     """Сохраняет новые сообщения из Redis в PostgreSQL"""
     if not r:
-        return
+        pass
 
-    key = f"{REDIS_CHAT_KEY_PREFIX}{project_id}"
-    length = await cast(t.Awaitable[int], r.llen(key))
+    key: str = f"{REDIS_CHAT_KEY_PREFIX}{project_id}"
+    length: int = await cast(t.Awaitable[int], r.llen(key))
     if length == 0:
         return
 
-    messages_json = await cast(t.Awaitable[List[str]], r.lrange(key, -50, -1))
+    messages_json: list[str] = await cast(t.Awaitable[List[str]], r.lrange(key, -50, -1))
     conn = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
     try:
         async with conn.transaction():
@@ -248,10 +248,10 @@ async def update_project_fields(fields: Dict[str, Any]) -> bool:
         return False
 
     project_id = ACTIVE_PROJECT["id"]
-    conn = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
+    conn: Any = await asyncpg.connect(user=DB_USER, password=DB_PASS, database=DB_NAME, host=DB_HOST, port=DB_PORT)
     try:
-        set_clause = ", ".join([f"{k} = ${i+2}" for i, k in enumerate(fields.keys())])
-        values = [project_id] + list(fields.values())
+        set_clause: str = ", ".join([f"{k} = ${i+2}" for i, k in enumerate(fields.keys())])
+        values: list[Any] = [project_id] + list(fields.values())
 
         await conn.execute(
             f"UPDATE projects SET {set_clause} WHERE id = $1",
@@ -267,37 +267,36 @@ async def update_project_fields(fields: Dict[str, Any]) -> bool:
 
 # --- MAIN AGENT LOOP ---
 
-async def agent_loop(user_input: str, mode: str = "dev"):
+async def agent_loop(user_input: str, mode: str = "dev") -> None:
     """Основной цикл агента с поддержкой инструментов"""
     global ACTIVE_PROJECT, r, client
 
     if not ACTIVE_PROJECT or not r or not client:
         print(f"{C_RED}[ERROR]{C_RESET} Система не инициализирована.")
-        return
 
     project_id = ACTIVE_PROJECT["id"]
-    redis_key = f"{REDIS_CHAT_KEY_PREFIX}{project_id}"
+    redis_key: str = f"{REDIS_CHAT_KEY_PREFIX}{project_id}"
 
     match mode:
         case "analyzer":
             sys_prompt = SYSTEM_PROMPT_ANALYZER
-            tools = tools_definition_analyzer
+            tools: list[dict[Any, str]] = tools_definition_analyzer
         case "review":
             sys_prompt = SYSTEM_PROMPT_REVIEW
-            tools = tools_definition_analyzer
+            tools: list[dict[Any, str]] = tools_definition_analyzer
         case "explain":
             sys_prompt = SYSTEM_PROMPT_EXPLAIN
-            tools = tools_definition_analyzer
+            tools: list[dict[Any, str]] = tools_definition_analyzer
         case "dialog_web":
             sys_prompt = SYSTEM_PROMPT_DIALOG_WEB
-            tools = tools_definition_dialog_web
+            tools: list[dict[Any, str]] = tools_definition_dialog_web
         case _:
             sys_prompt = SYSTEM_PROMPT_DEV
-            tools = tools_definition_dev
+            tools: list[dict[Any, str]] = tools_definition_dev
 
-    messages = [{"role": "system", "content": sys_prompt}]
+    messages: list[dict[str, str]]= [{"role": "system", "content": sys_prompt}]
 
-    project_context = []
+    project_context: list[Any] = []
     project_context.append(f"Проект: {ACTIVE_PROJECT['name']}")
     project_context.append(f"Путь: {ACTIVE_PROJECT['path']}")
 
@@ -311,10 +310,10 @@ async def agent_loop(user_input: str, mode: str = "dev"):
     if project_context:
         messages.append({"role": "system", "content": "\n".join(project_context)})
 
-    history_len = await cast(t.Awaitable[int], r.llen(redis_key))
+    history_len: int = await cast(t.Awaitable[int], r.llen(redis_key))
     if history_len == 0 or "посмотр" in user_input.lower() or "проанализируй" in user_input.lower():
         print(f"{C_GRAY}[SYSTEM]{C_RESET} Сканирование файлов проекта...")
-        scan_result = await scan_directory_tool()
+        scan_result: str = await scan_directory_tool()
         if scan_result and not scan_result.startswith("Ошибка"):
             messages.append(
                 {
@@ -323,15 +322,15 @@ async def agent_loop(user_input: str, mode: str = "dev"):
                 }
             )
 
-    redis_msgs = await cast(t.Awaitable[List[str]], r.lrange(redis_key, 0, -1))
+    redis_msgs: list[str] = await cast(t.Awaitable[List[str]], r.lrange(redis_key, 0, -1))
     if redis_msgs:
         try:
-            history = [json.loads(m) for m in redis_msgs[-MAX_DB_HISTORY:]]
+            history: list[Any] = [json.loads(s=m) for m in redis_msgs[-MAX_DB_HISTORY:]]
             messages.extend(history)
         except json.JSONDecodeError:
             print(f"{C_YELLOW}[WARN]{C_RESET} Ошибка чтения истории Redis.")
 
-    await cast(t.Awaitable[int], r.rpush(redis_key, json.dumps({"role": "user", "content": user_input})))
+    await cast(t.Awaitable[int], r.rpush(redis_key, json.dumps(obj={"role": "user", "content": user_input})))
     messages.append({"role": "user", "content": user_input})
 
     for iteration in range(MAX_ITERATIONS):
@@ -350,15 +349,15 @@ async def agent_loop(user_input: str, mode: str = "dev"):
             print(f"{C_RED}[ERROR]{C_RESET} Ошибка Ollama: {type(e).__name__}: {e}")
             break
 
-        msg = response["message"]
+        msg: Any = response["message"]
 
         if msg.get("tool_calls"):
             try:
                 msg_dict = msg.model_dump() if hasattr(msg, "model_dump") else dict(msg)
             except:
-                msg_dict = dict(msg)
+                msg_dict: dict[Any, Any] = dict(msg)
 
-            await cast(t.Awaitable[int], r.rpush(redis_key, json.dumps(msg_dict)))
+            await cast(t.Awaitable[int], r.rpush(redis_key, json.dumps(obj=msg_dict)))
             messages.append(msg_dict)
 
             for tool in msg.get("tool_calls"):

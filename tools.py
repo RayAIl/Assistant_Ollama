@@ -288,14 +288,14 @@ async def dialog_web_loop(user_input: str) -> None:
         print(f"{C_RED}[ERROR]{C_RESET} Система не инициализирована.")
         return
 
-    tools = tools_definition_dialog_web
-    messages = [{"role": "system", "content": SYSTEM_PROMPT_DIALOG_WEB}]
+    tools: list[dict] = tools_definition_dialog_web
+    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT_DIALOG_WEB}]
 
     # Загружаем историю из Redis
-    previous_msgs = await cast(t.Awaitable[List[str]], bd.r.lrange(REDIS_DIALOG_KEY, -MAX_DIALOG_HISTORY, -1))
+    previous_msgs: list[str] = await cast(t.Awaitable[List[str]], bd.r.lrange(REDIS_DIALOG_KEY, -MAX_DIALOG_HISTORY, -1))
     if previous_msgs:
         try:
-            history = [json.loads(m) for m in previous_msgs]
+            history: list = [json.loads(s=m) for m in previous_msgs]
             messages.extend(history)
             print(f"{C_GRAY}[CONTEXT]{C_RESET} Загружено {len(history)} сообщений из истории диалогов.")
         except json.JSONDecodeError:
@@ -306,7 +306,7 @@ async def dialog_web_loop(user_input: str) -> None:
     messages.append({"role": "user", "content": user_input})
 
     # ОСНОВНОЙ ЦИКЛ - поддержка множественных tool_calls
-    max_iterations = DIALOG_MAX_ITERATIONS
+    max_iterations: int = DIALOG_MAX_ITERATIONS
     for iteration in range(max_iterations):
         print(f"{C_GRAY}[DIALOG]{C_RESET} Итерация {iteration + 1}/{max_iterations}...")
 
@@ -328,10 +328,10 @@ async def dialog_web_loop(user_input: str) -> None:
             try:
                 msg_dict = msg.model_dump() if hasattr(msg, "model_dump") else dict(msg)
             except:
-                msg_dict = dict(msg)
+                msg_dict: dict = dict(msg)
 
             # Сохраняем сообщение с tool_calls
-            await cast(t.Awaitable[int], bd.r.rpush(REDIS_DIALOG_KEY, json.dumps(msg_dict)))
+            await cast(t.Awaitable[int], bd.r.rpush(REDIS_DIALOG_KEY, json.dumps(obj=msg_dict)))
             messages.append(msg_dict)
 
             # Обрабатываем каждый вызов инструмента
@@ -345,11 +345,11 @@ async def dialog_web_loop(user_input: str) -> None:
                     query = args.get("query")
                     if isinstance(query, str):
                         print(f"{C_CYAN}[WEB]{C_RESET} 🔍 Поиск #{iteration + 1}: {query}")
-                        res = await web_search_tool(query)
+                        res: str = await web_search_tool(query)
                     else:
                         res = "Ошибка: неверный запрос"
                 else:
-                    res = f"Инструмент {name} недоступен в режиме диалога"
+                    res: str = f"Инструмент {name} недоступен в режиме диалога"
 
                 # Сохраняем результат инструмента
                 tool_result = {
@@ -368,7 +368,7 @@ async def dialog_web_loop(user_input: str) -> None:
         text = msg.get("content", "")
         if text:
             print(f"{C_GREEN}🤖 [DIALOG]:{C_RESET} {text}")
-            await cast(t.Awaitable[int], bd.r.rpush(REDIS_DIALOG_KEY, json.dumps({"role": "assistant", "content": text})))
+            await cast(t.Awaitable[int], bd.r.rpush(REDIS_DIALOG_KEY, json.dumps(obj={"role": "assistant", "content": text})))
             break
         else:
             # Нет ни tool_calls, ни content
@@ -397,12 +397,12 @@ async def search_docs_tool(query: str) -> str:
     print(f"{C_GRAY}[DOCS]{C_RESET} Поиск: {query}")
     try:
         proc = await asyncio.create_subprocess_shell(
-            f"rga -i -n {shlex.quote(query)} {shlex.quote(doc_path)}",
+            cmd=f"rga -i -n {shlex.quote(query)} {shlex.quote(s=doc_path)}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=20.0)
-        result = stdout.decode()
+        result: str = stdout.decode()
         return result[:4000] if result else "Не найдено."
     except asyncio.TimeoutError:
         return "Таймаут поиска."
@@ -419,12 +419,12 @@ async def search_code_tool(query: str) -> str:
     print(f"{C_GRAY}[SEARCH]{C_RESET} Поиск кода: {query}")
     try:
         proc = await asyncio.create_subprocess_shell(
-            f"rga -i -n --glob='!.git' {shlex.quote(query)} {shlex.quote(path)}",
+            cmd=f"rga -i -n --glob='!.git' {shlex.quote(s=query)} {shlex.quote(s=path)}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=20.0)
-        result = stdout.decode()
+        stdout, _ = await asyncio.wait_for(fut=proc.communicate(), timeout=20.0)
+        result: str = stdout.decode()
         return result[:4000] if result else "Не найдено."
     except asyncio.TimeoutError:
         return "Таймаут поиска."
@@ -435,42 +435,42 @@ async def search_code_tool(query: str) -> str:
 async def write_file_tool(path: str, content: str) -> str:
     """Запись файла с подтверждением и diff"""
     try:
-        full_path = get_full_path(path)
+        full_path: str = get_full_path(rel_path=path)
 
         # Создаем директорию, если её нет
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        os.makedirs(name=os.path.dirname(full_path), exist_ok=True)
 
         diff_text = ""
         # Проверям сущ только для лога
-        file_exist = os.path.exists(full_path)
+        file_exist: bool = os.path.exists(path=full_path)
         if file_exist:
             try:
-                if os.path.exists(full_path):
+                if os.path.exists(path=full_path):
                     print(f"{C_YELLOW}[WARN]{C_RESET} Файл '{path}' существует. Читаю старую версию...")
                     async with aiofiles.open(full_path, "r", encoding="utf-8") as f:
-                        old_content = await f.read()
+                        old_content: str = await f.read()
 
                     diff = difflib.unified_diff(
-                        old_content.splitlines(keepends=True),
-                        content.splitlines(keepends=True),
+                        a=old_content.splitlines(keepends=True),
+                        b=content.splitlines(keepends=True),
                         fromfile=f"a/{path}",
                         tofile=f"b/{path}",
                         lineterm="",
                     )
-                    diff_text = "".join(diff)
+                    diff_text: str = "".join(diff)
 
                     if diff_text:
                         print(f"\n{C_GRAY}--- DIFF ({path}) ---{C_RESET}")
                         print(diff_text[:500] + ("..." if len(diff_text) > 500 else ""))
                         print(f"{C_GRAY}--- END ---{C_RESET}")
 
-                    confirm = await asyncio.to_thread(input, f"{C_YELLOW}❓ Перезаписать '{path}'? [y/N]: {C_RESET}")
+                    confirm: str = await asyncio.to_thread(input, f"{C_YELLOW}❓ Перезаписать '{path}'? [y/N]: {C_RESET}")
                     if confirm.lower() != "y":
                         return "Запись отменена."
             except Exception as e:
                 print(f"{C_YELLOW}[WARN]{C_RESET} Не удалось прочитать старый файл для сравнения: {e}")
 
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        os.makedirs(name=os.path.dirname(full_path), exist_ok=True)
         async with aiofiles.open(full_path, "w", encoding="utf-8") as f:
             await f.write(content)
         status_msg = "Обновлен" if file_exist else "Создан"
@@ -488,7 +488,7 @@ async def write_file_tool(path: str, content: str) -> str:
 async def read_file_tool(path: str) -> str:
     """Чтение файла"""
     try:
-        full_path = get_full_path(path)
+        full_path: str = get_full_path(rel_path=path)
         async with aiofiles.open(full_path, "r", encoding="utf-8", errors="replace") as f:
             return await f.read()
     except FileNotFoundError:
@@ -535,8 +535,8 @@ async def web_search_tool(query: str) -> str:
     all_texts = []
 
     # Определяем специальные случаи для прямого запроса
-    rust_query = 'rust' in query.lower() and ('версия' in query.lower() or 'version' in query.lower())
-    python_query = 'python' in query.lower() and ('версия' in query.lower() or 'version' in query.lower())
+    rust_query: bool = 'rust' in query.lower() and ('версия' in query.lower() or 'version' in query.lower())
+    python_query: bool = 'python' in query.lower() and ('версия' in query.lower() or 'version' in query.lower())
 
     # Для запросов о версиях языков программирования - сразу идем к официальным источникам
     if rust_query:
@@ -546,7 +546,7 @@ async def web_search_tool(query: str) -> str:
                 # Получаем главную страницу rust-lang.org
                 try:
                     async with session.get('https://www.rust-lang.org/', timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                        html = await resp.text()
+                        html: str = await resp.text()
                         soup = BeautifulSoup(html, "html.parser")
 
                         # Ищем информацию о версии на главной странице
@@ -563,7 +563,7 @@ async def web_search_tool(query: str) -> str:
                 # Пробуем получить информацию о релизах из блога
                 try:
                     async with session.get('https://blog.rust-lang.org/', timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                        html = await resp.text()
+                        html: str = await resp.text()
                         soup = BeautifulSoup(html, "html.parser")
 
                         # Ищем последние посты о релизах
@@ -593,7 +593,7 @@ async def web_search_tool(query: str) -> str:
                 # Пробуем получить changelog или release notes
                 try:
                     async with session.get('https://github.com/rust-lang/rust/releases', timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                        html = await resp.text()
+                        html: str = await resp.text()
                         soup = BeautifulSoup(html, "html.parser")
 
                         # Ищем первый релиз
@@ -612,7 +612,7 @@ async def web_search_tool(query: str) -> str:
                 if all_texts:
                     combined = "\n\n".join(all_texts)
                     if len(combined) > WEB_SEARCH_MAX_LENGTH:
-                        combined = combined[:WEB_SEARCH_MAX_LENGTH] + f"\n\n... [Обрезано до {WEB_SEARCH_MAX_LENGTH} символов]"
+                        combined: str = combined[:WEB_SEARCH_MAX_LENGTH] + f"\n\n... [Обрезано до {WEB_SEARCH_MAX_LENGTH} символов]"
                     print(f"{C_GRAY}[WEB]{C_RESET} Возвращаю {len(combined)} символов данных из {len(all_texts)} источников")
                     return combined
                 else:
@@ -626,7 +626,7 @@ async def web_search_tool(query: str) -> str:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get('https://www.python.org/', timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    html = await resp.text()
+                    html: str = await resp.text()
                     soup = BeautifulSoup(html, "html.parser")
                     text = soup.get_text(separator="\n", strip=True)
                     lines = [line.strip() for line in text.splitlines() if line.strip() and len(line.strip()) > 10]
@@ -641,7 +641,7 @@ async def web_search_tool(query: str) -> str:
             print(f"{C_YELLOW}[WARN]{C_RESET} Прямой запрос не удался: {e}, переключаюсь на поиск...")
 
     # Черный список доменов (развлекательные + КИТАЙСКИЕ + ФОРУМЫ)
-    blocked_domains = {
+    blocked_domains: set[str] = {
         # Развлекательные
         'rutube.ru', 'youtube.com', 'youtu.be', 'kinopoisk.ru',
         'vk.com', 'ok.ru', 'tiktok.com', 'instagram.com', 'facebook.com',
@@ -659,7 +659,7 @@ async def web_search_tool(query: str) -> str:
     }
 
     # Паттерны мусорных сайтов
-    blocked_patterns = [
+    blocked_patterns: list[str] = [
         'как пишется', 'песня', 'текст песни', 'lyrics', 'фильм',
         'смотреть онлайн', 'трейлер', 'wiki/последняя', 'wiki/последний',
         'значение слова', 'перевод', 'словарь', 'что значит',
@@ -667,23 +667,23 @@ async def web_search_tool(query: str) -> str:
     ]
 
     try:
-        query_lower = query.lower()
-        enhanced_query = query
-        replacements = {
+        query_lower: str = query.lower()
+        enhanced_query: str = query
+        replacements: dict[str, str] = {
                     'последняя версия': 'latest version',
                     'последний': 'latest',
                     'версия': 'version',
                     'какая': 'what',
                     'какой': 'what'
                 }
-        english_keywords = {'version', 'latest', 'release', 'notes', 'changes', 'stable', 'programming'}
+        english_keywords: set[str] = {'version', 'latest', 'release', 'notes', 'changes', 'stable', 'programming'}
         match None:
             case _ if any(kw in query_lower for kw in english_keywords):
                 pass
             case _:
                 for rus, eng in replacements.items():
                     if rus in query_lower:
-                        enhanced_query = enhanced_query.replace(rus,eng)
+                        enhanced_query: str = enhanced_query.replace(rus,eng)
         print(f"{C_GRAY}[WEB]{C_RESET} Запрос к поиску: {enhanced_query}")
 
         # Получаем результаты
@@ -692,8 +692,8 @@ async def web_search_tool(query: str) -> str:
         print(f"{C_GRAY}[WEB]{C_RESET} DuckDuckGo поиск (регион: {search_region})...")
 
         results = await loop.run_in_executor(
-            None,
-            lambda: list(DDGS().text(enhanced_query, max_results=30, region=search_region))
+            executor=None,
+            func=lambda: list(DDGS().text(enhanced_query, max_results=30, region=search_region))
         )
 
         print(f"{C_GRAY}[WEB]{C_RESET} Найдено результатов: {len(results)}")
@@ -705,10 +705,10 @@ async def web_search_tool(query: str) -> str:
 
         # Фильтрация с приоритизацией
         all_valid_results = []
-        blocked_count = {'chinese_domain': 0, 'chinese_title': 0, 'patterns': 0, 'invalid_url': 0, 'forums': 0}
+        blocked_count: dict[str, int] = {'chinese_domain': 0, 'chinese_title': 0, 'patterns': 0, 'invalid_url': 0, 'forums': 0}
 
         # Официальные домены для приоритета (с весами)
-        priority_domains = {
+        priority_domains: dict[str, int] = {
             'rust-lang.org': 100,
             'doc.rust-lang.org': 100,
             'blog.rust-lang.org': 90,
@@ -770,7 +770,7 @@ async def web_search_tool(query: str) -> str:
                 continue
 
             # Проверяем заголовок на китайские символы
-            chinese_in_title = sum(1 for char in title if '\u4e00' <= char <= '\u9fff')
+            chinese_in_title: int = sum(1 for char in title if '\u4e00' <= char <= '\u9fff')
             if chinese_in_title > 0:
                 blocked_count['chinese_title'] += 1
                 continue
@@ -787,7 +787,7 @@ async def web_search_tool(query: str) -> str:
             priority_score = 0
             for priority_domain, score in priority_domains.items():
                 if priority_domain in domain or priority_domain in href:
-                    priority_score = score
+                    priority_score: int = score
                     break
 
             # Добавляем результат с приоритетом
@@ -853,12 +853,12 @@ async def web_search_tool(query: str) -> str:
                         max_redirects=2
                     ) as resp:
 
-                        content_type = resp.headers.get('content-type', '').lower()
+                        content_type: str = resp.headers.get('content-type', '').lower()
                         if 'text/html' not in content_type:
                             all_texts.append(f"=== Источник {i}: {title} ===\n[Не HTML: {content_type}]")
                             continue
 
-                        html = await resp.text(errors='replace')
+                        html: str = await resp.text(errors='replace')
 
                     # Парсинг
                     soup = BeautifulSoup(html, "html.parser")
@@ -884,7 +884,7 @@ async def web_search_tool(query: str) -> str:
                     for line in text.splitlines():
                         line = line.strip()
                         # Пропускаем строки с большим количеством китайских символов
-                        chinese_chars = sum(1 for char in line if '\u4e00' <= char <= '\u9fff')
+                        chinese_chars: int = sum(1 for char in line if '\u4e00' <= char <= '\u9fff')
                         if chinese_chars > len(line) * 0.3:  # Если >30% китайских символов
                             continue
                         if line and len(line) > 20:
@@ -915,23 +915,23 @@ async def web_search_tool(query: str) -> str:
 
         combined = "\n\n".join(all_texts)
         if len(combined) > WEB_SEARCH_MAX_LENGTH:
-            combined = combined[:WEB_SEARCH_MAX_LENGTH] + f"\n\n... [Обрезано до {WEB_SEARCH_MAX_LENGTH} символов]"
+            combined: str = combined[:WEB_SEARCH_MAX_LENGTH] + f"\n\n... [Обрезано до {WEB_SEARCH_MAX_LENGTH} символов]"
 
         print(f"{C_GRAY}[WEB]{C_RESET} Итого возвращаю: {len(combined)} символов из {len(all_texts)} источников")
         return combined
 
     except Exception as e:
-        error_msg = f"Критическая ошибка поиска: {type(e).__name__}: {str(e)}"
+        error_msg: str = f"Критическая ошибка поиска: {type(e).__name__}: {str(e)}"
         print(f"{C_RED}[ERROR]{C_RESET} {error_msg}")
         return error_msg
 
-def print_header():
+def print_header() -> None:
     print(f"\n{C_GRAY}{'='*60}{C_RESET}")
     print(f"{C_BLUE}🛠  AI Project Manager v5.5{C_RESET} {C_GRAY}|{C_RESET} Smart Search")
     print(f"{C_GRAY}{'='*60}{C_RESET}\n")
 
 
-def print_help():
+def print_help() -> None:
     print(f"{C_CYAN}Команды:{C_RESET}")
     print(f"  {C_YELLOW}/info{C_RESET}                          {C_GRAY}Панель команд{C_RESET}")
     print(f"  {C_YELLOW}/create <name> <path> <goal>{C_RESET}   {C_GRAY}Создать проект{C_RESET}")
