@@ -5,7 +5,7 @@ import anthropic
 import asyncpg
 import redis.asyncio as redis
 
-from typing import cast, List, Dict, Any, Awaitable
+from typing import cast, List, Dict, Any
 from config import *
 from tools import *
 
